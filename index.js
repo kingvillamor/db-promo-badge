@@ -1,11 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
 import mysql from "mysql";
 import util from "util";
 import axios from "axios";
 import SimpleNodeLogger from "simple-node-logger";
 import tz from "moment-timezone";
 import moment from "moment";
-import { exit } from "process";
+
 import { getThemeId } from "./apiClient.js";
+
 const mySecret = process.env["api-key"];
 const dbPass = process.env["db-pass"];
 const host = process.env["host"];
@@ -39,7 +42,7 @@ const query = util.promisify(conn.query).bind(conn);
 export const run = async () => {
   try {
     const rows = await query("SELECT * FROM rustans_web_services.pr_promos");
-
+    log.info("rows", rows);
     let promoBadges = [];
     let promoPlaceholder = [];
     for (let row of rows) {
@@ -318,16 +321,19 @@ export const run = async () => {
     //GET THE CURRENT THEME<-----//
     const badges = promoBadges.join("");
     const badge = `{% if product.tags contains 'freegift'%}\n<div>\n <h6 class="product-badge--silver">With Exclusive Gift</h6>\n</div>\n${badges}\n\n{% else %}\n{% include 'new-promo-badge2' %}\n\n{% endif %}`;
-
+    log.info("badges", badges);
     const mechanics = promoPlaceholder.join("");
+    log.info("mechanics", mechanics);
     const mechanicsTemplate = `{% if product.vendor == 'undefined' %}\n  {% unless product.tag == 'GWP' %}\n    <p class="gwp-placeholder"></p>\n  {% endunless %}\n${mechanics}\n\n\n{% endif %}`;
-
+    log.info("themeToUpdateIds:", themeToUpdateIds);
     for (const themeId of themeToUpdateIds) {
-      promises.push(addPromoBadges(badge, themeId));
-      promises.push(newPromoPlaceholder(mechanicsTemplate, themeId));
+      promises.push(addPromoBadges(themeId, badge));
+      promises.push(newPromoPlaceholder(themeId, mechanicsTemplate));
     }
     const promiseResults = await Promise.allSettled(promises);
     log.info("promiseResults:", promiseResults);
+  } catch (err) {
+    log.error("Error", err);
   } finally {
     conn.end();
   }
@@ -335,6 +341,7 @@ export const run = async () => {
 
 const addPromoBadges = async (themeId, badge) => {
   //***https://rustanscom.myshopify.com/admin
+  // log.info("badge:", badge);
   const response = await axios.put(
     `${apiLink}/themes/${themeId}/assets.json`,
     {
@@ -350,11 +357,12 @@ const addPromoBadges = async (themeId, badge) => {
       },
     }
   );
-  log.info("Promo Badge Added" + response.data);
+  // log.info("Promo Badge Added", response.data);
   return response;
 };
 
 const newPromoPlaceholder = async (themeId, mechanicsTemplate) => {
+  // log.info("mechanicsTemplate", mechanicsTemplate);
   //***https://rustanscom.myshopify.com/admin
   const response = await axios.put(
     `${apiLink}/themes/${themeId}/assets.json`,
@@ -371,7 +379,7 @@ const newPromoPlaceholder = async (themeId, mechanicsTemplate) => {
       },
     }
   );
-  log.info("Placeholder Added" + response.data);
+  // log.info("Placeholder Added", response.data);
   return response;
 };
 
